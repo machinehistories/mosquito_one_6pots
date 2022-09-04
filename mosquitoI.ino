@@ -27,16 +27,19 @@ char gain = 1;
 // Note: Pin assignment is a bit arbitrary. This order worked fine for the way I laid out the pots
 //       on my front panel, but you might find you need a different order to help with wire routing,
 //       panel layout etc
-const int OSC_ONE_PIN = 2;    // pitch
-const int OSC_TWO_PIN=3;      // phase
-const int MODA_PIN=0;         // rate
-const int MODB_PIN=1;         // legato
-const int MODC_PIN=4;         // filter
+const int RATE_PIN=0;         // rate fader 0
+const int OSC_ONE_PIN = 1;    // pitch fader 1
+const int OSC_TWO_PIN=2;      // phase fader 2
+
+const int FILTER_PIN=3;         // filter joystick
+const int RESONANCE_PIN=4;      // resonance joystick
+const int LEGATO_PIN=5;         // legato ldr
 
 // digital pins
 const int ledPin=4;           // LED
 const int upButtonPin = 2;    // up push button
 const int downButtonPin = 3;  // down push button
+const int EFFECTS_PIN;
 
 // global vars to handle push button functionality and debouncing
 int upButtonState;
@@ -95,7 +98,8 @@ int LEGATO_MIN = 32;          // minimum note length (capping at 32 to avoid rol
 int LEGATO_MAX = 1024;        // maximum note length 
 int LPF_CUTOFF_MIN = 10;      // low pass filter min cutoff frequency
 int LPF_CUTOFF_MAX = 245;     // low pass filter max cutoff frequency
-
+int LPF_RESONANCE_MIN = 0;    // low pass resonance
+int LPF_RESONANCE_MAX = 100;w
 void setup(){
   //initialize buttons
   pinMode(upButtonPin, INPUT);
@@ -153,21 +157,21 @@ void updateControl(){
   // read pot values
   int oscOne_val = mozziAnalogRead(OSC_ONE_PIN);
   int oscTwo_val = mozziAnalogRead(OSC_TWO_PIN);
-  int modA_val = mozziAnalogRead(MODA_PIN);
-  int modB_val = mozziAnalogRead(MODB_PIN);
-  int modC_val = mozziAnalogRead(MODC_PIN);
+  int rate_val = mozziAnalogRead(RATE_PIN);
+  int legato_val = mozziAnalogRead(LEGATO_PIN);
+  int filter_val = mozziAnalogRead(FILTER_PIN);
 
   // map pot vals
   // These formulas set the range of values coming from the pots to value ranges that work well with the various control functionality.
   // You'll probably only need to mess with these if you want to expand or offset the ranges to suit your own project's needs
   int oscOne_offset = (OSC_ONE_OFFSET*2) * ((oscOne_val * DIV1023)-0.5);                  // offset of original midi note number +/- 1 octave
   float oscTwo_offset = ((oscTwo_val * DIV1023) * DIV10) * OSC_TWO_OFFSET;                // frequency offset for second oscillator +/- 0.2 oscOne freq
-  float modA_freq = ARP_RATE_MIN + (ARP_RATE_MAX * (1-(modA_val * DIV1023)));             // arpeggiator rate from 32 millisecs to ~= 1 sec
-  float modB_freq = 1-(modB_val * DIV1023);                                               // legato from 32 millisecs to full on (1 sec)
-  int modC_freq = LPF_CUTOFF_MIN + (LPF_CUTOFF_MAX *(modC_val * DIV1023));                // lo pass filter cutoff freq ~=100Hz-8k
+  float rate_freq = ARP_RATE_MIN + (ARP_RATE_MAX * (1-(rate_val * DIV1023)));             // arpeggiator rate from 32 millisecs to ~= 1 sec
+  float legato_free = 1-(legato_val * DIV1023);                                               // legato from 32 millisecs to full on (1 sec)
+  int filter_freq = LPF_CUTOFF_MIN + (LPF_CUTOFF_MAX *(filter_val * DIV1023));                // lo pass filter cutoff freq ~=100Hz-8k
 
   // using an EventDelay to cycle through the sequence and play each note
-  kGainChangeDelay.set(modA_freq);                                        // set the delay frequency                                           
+  kGainChangeDelay.set(rate_freq);                                        // set the delay frequency                                           
   if(kGainChangeDelay.ready()){                                           
       if(gain==0){                                                        // we'll make changes to the oscillator freq when the note is off
         if(note >= numNotes){                                             // if we've reached the end of the sequence, loop back to the beginning
@@ -188,16 +192,16 @@ void updateControl(){
         
         // setting length of note
         gain = 1;
-        kGainChangeDelay.set(modA_freq*(1-modB_freq));                    // set length that note is on based on user legato settings
+        kGainChangeDelay.set(rate_freq*(1-modB_freq));                    // set length that note is on based on user legato settings
       }
       else{
           gain = 0;
-          kGainChangeDelay.set(modA_freq*modB_freq);                      // set length that note is off based on user legato settings
+          kGainChangeDelay.set(rate_freq*legato_freq);                      // set length that note is off based on user legato settings
       }
     kGainChangeDelay.start();                                             // execute the delay specified above
   }
   // setting lo pass cutoff freq
-  lpf.setCutoffFreq(modC_freq);                                           // set the lo pass filter cutoff freq per user settings
+  lpf.setCutoffFreq(filter_freq);                                           // set the lo pass filter cutoff freq per user settings
   
 }
 
